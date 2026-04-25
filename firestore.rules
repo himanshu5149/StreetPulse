@@ -1,0 +1,61 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // 0. Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- PHASE 3: Primitives ---
+    function isSignedIn() { return request.auth != null; }
+    function isValidId(id) { return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+    
+    // --- PHASE 4: Validation Blueprints ---
+    
+    function isValidSession(data) {
+      return data.keys().hasAll(['vendorId', 'vendorName', 'dishName', 'location', 'status', 'openedAt', 'closesAt'])
+        && data.vendorId is string && data.vendorId.size() <= 128
+        && data.vendorName is string && data.vendorName.size() <= 100
+        && data.dishName is string && data.dishName.size() <= 100
+        && data.location.lat is float && data.location.lng is float
+        && data.status in ['open', 'closed']
+        && data.openedAt is string && data.openedAt.size() <= 50
+        && data.closesAt is string && data.closesAt.size() <= 50
+        && (data.price is number && data.price >= 0)
+        && (data.photoUrl == null || (data.photoUrl is string && data.photoUrl.size() <= 1000));
+    }
+
+    // --- COLLECTIONS ---
+
+    match /sessions/{sessionId} {
+      // Allow public discovery of ACTIVE signals
+      allow get: if resource.data.status == 'open';
+      
+      // Allow listing ACTIVE signals publicly - protects historical data
+      allow list: if resource.data.status == 'open';
+
+      allow create: if isSignedIn() 
+                    && isValidSession(incoming())
+                    && incoming().status == 'open';
+
+      allow update: if isSignedIn() 
+                    && isValidSession(incoming())
+                    && (
+                      // Action: End Session (Terminal State Locking)
+                      (existing().status == 'open' && incoming().status == 'closed' && (request.auth.uid == existing().vendorId || request.auth.uid == incoming().vendorId) && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt']))
+                      ||
+                      // Action: Increment Views
+                      (incoming().diff(existing()).affectedKeys().hasOnly(['viewCount']))
+                    );
+      
+      allow delete: if false; 
+    }
+
+    match /alerts/{alertId} {
+      allow read, write: if isSignedIn() && (request.auth.uid == resource.data.userId || request.auth.uid == incoming().userId);
+    }
+  }
+}

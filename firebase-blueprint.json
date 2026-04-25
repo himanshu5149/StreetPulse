@@ -1,0 +1,60 @@
+{
+  "entities": {
+    "VendorSession": {
+      "title": "Vendor Session",
+      "description": "An ephemeral 'signal flare' shared by a vendor when they are open.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique session ID" },
+        "vendorId": { "type": "string", "description": "ID of the vendor (can be anonymous device ID)" },
+        "vendorName": { "type": "string", "description": "Display name of the vendor/stall" },
+        "dishName": { "type": "string", "description": "What is being sold right now" },
+        "description": { "type": "string", "description": "Brief details or menu notes" },
+        "price": { "type": "number", "description": "Price of the primary dish" },
+        "currency": { "type": "string", "description": "Currency code (e.g., USD, NPR)" },
+        "location": {
+          "type": "object",
+          "properties": {
+            "lat": { "type": "number" },
+            "lng": { "type": "number" }
+          },
+          "required": ["lat", "lng"]
+        },
+        "status": { "type": "string", "enum": ["open", "closed"], "description": "Current status" },
+        "openedAt": { "type": "string", "format": "date-time" },
+        "closesAt": { "type": "string", "format": "date-time" },
+        "photoUrl": { "type": "string", "description": "URL of the live dish photo" },
+        "tags": { "type": "array", "items": { "type": "string" } },
+        "viewCount": { "type": "number", "description": "Number of people who viewed this pin today" }
+      },
+      "required": ["id", "vendorName", "dishName", "location", "openedAt", "closesAt"]
+    },
+    "UserAlert": {
+      "title": "User Alert",
+      "description": "A geofenced notification setting for eaters.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "location": {
+          "type": "object",
+          "properties": {
+            "lat": { "type": "number" },
+            "lng": { "type": "number" }
+          }
+        },
+        "radiusMeters": { "type": "number" },
+        "active": { "type": "boolean" }
+      }
+    }
+  },
+  "firestore": {
+    "/sessions": {
+      "schema": "VendorSession",
+      "description": "Active street food vendor sessions."
+    },
+    "/alerts": {
+      "schema": "UserAlert",
+      "description": "User geofenced notification settings."
+    }
+  }
+}

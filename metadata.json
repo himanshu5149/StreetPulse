@@ -1,0 +1,6 @@
+{
+  "name": "StreetPulse",
+  "description": "Real-time discovery for local street food vendors. Find out who is open, where, and what is cooking right now.",
+  "requestFramePermissions": ["geolocation"],
+  "majorCapabilities": ["real-time discovery", "geospatial mapping"]
+}
