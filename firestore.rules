@@ -12,6 +12,7 @@ service cloud.firestore {
     function isValidId(id) { return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
     function incoming() { return request.resource.data; }
     function existing() { return resource.data; }
+    function isOwner(userId) { return request.auth.uid == userId; }
     
     // --- PHASE 4: Validation Blueprints ---
     
@@ -22,40 +23,74 @@ service cloud.firestore {
         && data.dishName is string && data.dishName.size() <= 100
         && data.location.lat is float && data.location.lng is float
         && data.status in ['open', 'closed']
-        && data.openedAt is string && data.openedAt.size() <= 50
-        && data.closesAt is string && data.closesAt.size() <= 50
+        && data.openedAt is string
+        && data.closesAt is string
         && (data.price is number && data.price >= 0)
-        && (data.photoUrl == null || (data.photoUrl is string && data.photoUrl.size() <= 1000));
+        && (data.category == null || data.category is string)
+        && (data.priceRange == null || data.priceRange in ['budget', 'mid', 'premium'])
+        && (data.spiceLevel == null || data.spiceLevel in ['mild', 'medium', 'hot', 'extra-hot']);
     }
 
     // --- COLLECTIONS ---
 
     match /sessions/{sessionId} {
-      // Allow public discovery of ACTIVE signals
       allow get: if resource.data.status == 'open';
-      
-      // Allow listing ACTIVE signals publicly - protects historical data
       allow list: if resource.data.status == 'open';
 
       allow create: if isSignedIn() 
                     && isValidSession(incoming())
-                    && incoming().status == 'open';
+                    && incoming().status == 'open'
+                    && isOwner(incoming().vendorId);
 
-      allow update: if isSignedIn() 
-                    && isValidSession(incoming())
-                    && (
-                      // Action: End Session (Terminal State Locking)
-                      (existing().status == 'open' && incoming().status == 'closed' && (request.auth.uid == existing().vendorId || request.auth.uid == incoming().vendorId) && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt']))
+      allow update: if 
+                    // Action: Anonymous Increment Views/Taps (Limit to specific fields)
+                    (incoming().diff(existing()).affectedKeys().hasOnly(['viewCount']) || incoming().diff(existing()).affectedKeys().hasOnly(['whatsappTaps']) || incoming().diff(existing()).affectedKeys().hasAll(['viewCount', 'whatsappTaps']))
+                    ||
+                    (isSignedIn() && (
+                      // Action: End Session
+                      (existing().status == 'open' && incoming().status == 'closed' && isOwner(existing().vendorId) && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt']))
                       ||
-                      // Action: Increment Views
-                      (incoming().diff(existing()).affectedKeys().hasOnly(['viewCount']))
-                    );
+                      // Action: Community Verification (Still Here?)
+                      (incoming().diff(existing()).affectedKeys().hasAll(['lastVerifiedAt', 'verificationCount', 'verifiedBy']) 
+                       && !(request.auth.uid in existing().verifiedBy)
+                       && incoming().verificationCount == existing().verificationCount + 1
+                       && incoming().verifiedBy.hasAll([request.auth.uid])
+                       && incoming().verifiedBy.size() <= 11) // Rolling max 10 + 1
+                      ||
+                      // Action: Increment Views/Taps (Redundant with anonymous but kept for clarity)
+                      (incoming().diff(existing()).affectedKeys().hasAny(['viewCount', 'whatsappTaps']))
+                      ||
+                      // Action: Extend Session
+                      (isOwner(existing().vendorId) && incoming().extensionCount <= 2 && incoming().diff(existing()).affectedKeys().hasAny(['closesAt', 'extensionCount']))
+                      ||
+                      // Action: Edit Session Details
+                      (isOwner(existing().vendorId) && incoming().diff(existing()).affectedKeys().hasAny(['dishName', 'price', 'description', 'updatedAt']))
+                    ));
       
       allow delete: if false; 
     }
 
-    match /alerts/{alertId} {
-      allow read, write: if isSignedIn() && (request.auth.uid == resource.data.userId || request.auth.uid == incoming().userId);
+    match /vendors/{vendorId} {
+      allow read: if true;
+      allow write: if isOwner(vendorId);
+    }
+
+    match /ratings/{ratingId} {
+      // ratingId must be {sessionId}_{raterUID}
+      allow create: if isSignedIn() 
+                    && ratingId == incoming().sessionId + '_' + request.auth.uid
+                    && incoming().score >= 1 && incoming().score <= 3
+                    && isOwner(incoming().raterUID);
+      allow read: if true;
+    }
+
+    match /userPreferences/{userId} {
+      allow read, write: if isOwner(userId);
+    }
+
+    match /notifications/{notifId} {
+      allow read: if isOwner(resource.data.userId);
+      allow update: if isOwner(resource.data.userId) && incoming().diff(existing()).affectedKeys().hasOnly(['isRead']);
     }
   }
 }

@@ -5,13 +5,13 @@
       "description": "An ephemeral 'signal flare' shared by a vendor when they are open.",
       "type": "object",
       "properties": {
-        "id": { "type": "string", "description": "Unique session ID" },
-        "vendorId": { "type": "string", "description": "ID of the vendor (can be anonymous device ID)" },
-        "vendorName": { "type": "string", "description": "Display name of the vendor/stall" },
-        "dishName": { "type": "string", "description": "What is being sold right now" },
-        "description": { "type": "string", "description": "Brief details or menu notes" },
-        "price": { "type": "number", "description": "Price of the primary dish" },
-        "currency": { "type": "string", "description": "Currency code (e.g., USD, NPR)" },
+        "id": { "type": "string" },
+        "vendorId": { "type": "string" },
+        "vendorName": { "type": "string" },
+        "dishName": { "type": "string" },
+        "description": { "type": "string" },
+        "price": { "type": "number" },
+        "currency": { "type": "string" },
         "location": {
           "type": "object",
           "properties": {
@@ -20,41 +20,102 @@
           },
           "required": ["lat", "lng"]
         },
-        "status": { "type": "string", "enum": ["open", "closed"], "description": "Current status" },
+        "status": { "type": "string", "enum": ["open", "closed"] },
         "openedAt": { "type": "string", "format": "date-time" },
         "closesAt": { "type": "string", "format": "date-time" },
-        "photoUrl": { "type": "string", "description": "URL of the live dish photo" },
+        "photoUrl": { "type": "string" },
         "tags": { "type": "array", "items": { "type": "string" } },
-        "viewCount": { "type": "number", "description": "Number of people who viewed this pin today" }
+        "category": { "type": "string" },
+        "priceRange": { "type": "string", "enum": ["budget", "mid", "premium"] },
+        "isVeg": { "type": "boolean" },
+        "spiceLevel": { "type": "string", "enum": ["mild", "medium", "hot", "extra-hot"] },
+        "whatsappNumber": { "type": "string" },
+        "lastVerifiedAt": { "type": "string", "format": "date-time" },
+        "verificationCount": { "type": "number" },
+        "verifiedBy": { "type": "array", "items": { "type": "string" } },
+        "viewCount": { "type": "number" },
+        "whatsappTaps": { "type": "number" },
+        "extensionCount": { "type": "number" },
+        "activeViewers": { "type": "number" }
       },
-      "required": ["id", "vendorName", "dishName", "location", "openedAt", "closesAt"]
+      "required": ["id", "vendorId", "vendorName", "dishName", "location", "openedAt", "closesAt"]
     },
-    "UserAlert": {
-      "title": "User Alert",
-      "description": "A geofenced notification setting for eaters.",
+    "Vendor": {
+      "title": "Vendor Profile",
+      "description": "Persistent identity for vendors.",
       "type": "object",
       "properties": {
+        "id": { "type": "string" },
+        "displayName": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "whatsappNumber": { "type": "string" },
+        "totalSessions": { "type": "number" },
+        "totalRatings": { "type": "number" },
+        "avgRating": { "type": "number" },
+        "isVerifiedVendor": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "UserPreference": {
+      "title": "User Preferences",
+      "description": "Notification settings and followed vendors.",
+      "type": "object",
+      "properties": {
+        "fcmToken": { "type": "string" },
+        "followedVendors": { "type": "array", "items": { "type": "string" } },
+        "notifyRadius": { "type": "number" },
+        "notifyCategories": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "Notification": {
+      "title": "Notification",
+      "description": "In-app alerts for users.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
         "userId": { "type": "string" },
-        "location": {
-          "type": "object",
-          "properties": {
-            "lat": { "type": "number" },
-            "lng": { "type": "number" }
-          }
-        },
-        "radiusMeters": { "type": "number" },
-        "active": { "type": "boolean" }
+        "type": { "type": "string" },
+        "title": { "type": "string" },
+        "body": { "type": "string" },
+        "sessionId": { "type": "string" },
+        "vendorId": { "type": "string" },
+        "isRead": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "Rating": {
+      "title": "Rating",
+      "description": "User feedback on a vendor session.",
+      "type": "object",
+      "properties": {
+        "vendorId": { "type": "string" },
+        "sessionId": { "type": "string" },
+        "raterUID": { "type": "string" },
+        "score": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" }
       }
     }
   },
   "firestore": {
     "/sessions": {
       "schema": "VendorSession",
-      "description": "Active street food vendor sessions."
+      "description": "Active flares."
     },
-    "/alerts": {
-      "schema": "UserAlert",
-      "description": "User geofenced notification settings."
+    "/vendors": {
+      "schema": "Vendor",
+      "description": "Persistent vendor profiles."
+    },
+    "/userPreferences": {
+      "schema": "UserPreference",
+      "description": "User-specific settings."
+    },
+    "/notifications": {
+      "schema": "Notification",
+      "description": "User in-app alerts."
+    },
+    "/ratings": {
+      "schema": "Rating",
+      "description": "Session ratings."
     }
   }
 }

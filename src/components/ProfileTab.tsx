@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
-import { User, Mail, Bell, MapPin, LogOut, CheckCircle2, ShieldAlert, Loader2, Globe } from 'lucide-react';
+import { User, Mail, Bell, MapPin, LogOut, CheckCircle2, ShieldAlert, Loader2, Globe, X } from 'lucide-react';
 import { User as FirebaseUser } from 'firebase/auth';
 import { sessionService } from '../services/sessionService';
 import { UserAlert } from '../types';
@@ -22,6 +22,7 @@ export default function ProfileTab({ user, onLogout, userLocation }: ProfileTabP
     keywords: [],
   });
   const [locationName, setLocationName] = useState<string>('Detecting location...');
+  const [keywordInput, setKeywordInput] = useState('');
 
   useEffect(() => {
     const fetchAlert = async () => {
@@ -139,6 +140,47 @@ export default function ProfileTab({ user, onLogout, userLocation }: ProfileTabP
                 onChange={e => setAlertConfig({...alertConfig, radiusKm: parseFloat(e.target.value)})}
                 className="w-full h-2 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-orange-600"
               />
+            </div>
+
+            <div className="space-y-4">
+              <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 ml-1">Favorite Dishes & Keywords</label>
+              <div className="flex gap-2">
+                <input 
+                  type="text"
+                  placeholder="e.g. Momo, Pizza, Spicy..."
+                  value={keywordInput}
+                  onChange={e => setKeywordInput(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter' && keywordInput.trim()) {
+                      e.preventDefault();
+                      if (!alertConfig.keywords.includes(keywordInput.trim())) {
+                        setAlertConfig({...alertConfig, keywords: [...alertConfig.keywords, keywordInput.trim()]});
+                      }
+                      setKeywordInput('');
+                    }
+                  }}
+                  className="flex-1 bg-slate-50 border-2 border-slate-100 rounded-xl px-4 py-3 text-xs font-bold text-slate-900 outline-none focus:border-orange-500 transition-all italic"
+                />
+                <button 
+                  onClick={() => {
+                    if (keywordInput.trim() && !alertConfig.keywords.includes(keywordInput.trim())) {
+                      setAlertConfig({...alertConfig, keywords: [...alertConfig.keywords, keywordInput.trim()]});
+                      setKeywordInput('');
+                    }
+                  }}
+                  className="bg-slate-900 text-white px-4 rounded-xl text-xs font-black"
+                >
+                  ADD
+                </button>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {alertConfig.keywords.map(word => (
+                  <span key={word} className="bg-orange-50 text-orange-600 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest flex items-center gap-2 border border-orange-100">
+                    {word}
+                    <X size={12} className="cursor-pointer" onClick={() => setAlertConfig({...alertConfig, keywords: alertConfig.keywords.filter(k => k !== word)})} />
+                  </span>
+                ))}
+              </div>
             </div>
 
             <div className="flex items-center gap-4 p-4 bg-slate-50 rounded-2xl border border-slate-100">

@@ -3,9 +3,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Map as MapIcon, PlusCircle, User, Info, MapPin, Signal, Loader2, LogIn, LogOut } from 'lucide-react';
+import { Map as MapIcon, PlusCircle, User, Info, MapPin, Signal, Loader2, LogIn, LogOut, Settings } from 'lucide-react';
 import { cn } from './lib/utils';
 import { VendorSession } from './types';
 import { MOCK_SESSIONS } from './constants';
@@ -24,6 +24,29 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState<FirebaseUser | null>(null);
   const [userLocation, setUserLocation] = useState<{lat: number, lng: number} | null>(null);
+  const [locationStatus, setLocationStatus] = useState<'prompt' | 'granted' | 'denied'>('prompt');
+
+  const requestLocation = useCallback((isManual = false) => {
+    if ("geolocation" in navigator) {
+      navigator.geolocation.getCurrentPosition((position) => {
+        setUserLocation({
+          lat: position.coords.latitude,
+          lng: position.coords.longitude
+        });
+        setLocationStatus('granted');
+      }, (err) => {
+        console.warn("Location access denied", err);
+        setLocationStatus('denied');
+        if (isManual) {
+          alert("To enable location, please check your browser's site settings for StreetPulse.");
+        }
+      }, {
+        enableHighAccuracy: true,
+        timeout: 5000,
+        maximumAge: 0
+      });
+    }
+  }, []);
 
   useEffect(() => {
     // 1. Handle Auth State
@@ -31,21 +54,12 @@ export default function App() {
       setUser(currentUser);
     });
 
-    // 2. Get User Location
-    if ("geolocation" in navigator) {
-      navigator.geolocation.getCurrentPosition((position) => {
-        setUserLocation({
-          lat: position.coords.latitude,
-          lng: position.coords.longitude
-        });
-      }, (err) => {
-        console.warn("Location access denied", err);
-      });
-    }
+    // 2. Get User Location Init
+    requestLocation();
 
     // 3. Subscribe to Real-time Sessions
     const unsubscribeSessions = sessionService.subscribeToLiveSessions((liveSessions) => {
-      setSessions(liveSessions.length > 0 ? liveSessions : MOCK_SESSIONS);
+      setSessions(liveSessions);
       setLoading(false);
     });
 
@@ -59,8 +73,15 @@ export default function App() {
     try {
       const provider = new GoogleAuthProvider();
       await signInWithPopup(auth, provider);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Login failed", error);
+      if (error.code === 'auth/popup-closed-by-user') {
+        alert("Login was cancelled because the popup was closed. Please try again.");
+      } else if (error.code === 'auth/blocked-by-client') {
+        alert("The login popup was blocked by your browser. Please allow popups for this site.");
+      } else {
+        alert("Login failed. Please try again later.");
+      }
     }
   };
 
@@ -119,7 +140,28 @@ export default function App() {
                   exit={{ opacity: 0 }}
                   className="h-full w-full"
                 >
-                  <MapDiscovery sessions={sessions} />
+                  {locationStatus === 'denied' && (
+                    <div className="absolute top-24 left-1/2 -translate-x-1/2 z-[501] w-[calc(100%-3rem)] max-w-md pointer-events-none">
+                      <div className="bg-slate-900 border-2 border-white/10 text-white p-5 rounded-[2rem] shadow-2xl flex items-center justify-between gap-5 pointer-events-auto backdrop-blur-xl">
+                        <div className="flex items-center gap-4">
+                          <div className="w-10 h-10 bg-red-500 rounded-full flex items-center justify-center animate-pulse">
+                            <MapPin size={18} />
+                          </div>
+                          <div>
+                            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-white/50 mb-0.5">GPS Off</p>
+                            <p className="text-xs font-black italic">Location Access Denied.</p>
+                          </div>
+                        </div>
+                        <button 
+                          onClick={() => requestLocation(true)}
+                          className="px-6 py-3 bg-red-600 hover:bg-red-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-colors shadow-lg shadow-red-900/40"
+                        >
+                          Retry
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                  <MapDiscovery sessions={sessions} userLocation={userLocation} />
                 </motion.div>
               )}
               {activeTab === 'vendor' && (
